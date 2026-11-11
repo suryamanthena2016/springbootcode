@@ -1,0 +1,147 @@
+Step 1: Eureka Server (Service Registry)
+Create a Eureka Server so both services can register.
+
+application.properties
+
+spring.application.name=eureka-server
+server.port=8761
+
+eureka.client.register-with-eureka=false
+eureka.client.fetch-registry=false
+
+Main.class
+
+@SpringBootApplication
+@EnableEurekaServer
+public class EurekaServerApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(EurekaServerApplication.class, args);
+    }
+}
+
+
+Step 2: School Service
+
+
+application.properties
+
+spring.application.name=school-service
+server.port=8081
+
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+
+Main.class
+@SpringBootApplication
+@EnableEurekaClient
+public class SchoolServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SchoolServiceApplication.class, args);
+    }
+}
+
+Controller.class
+@RestController
+@RequestMapping("/schools")
+public class SchoolController {
+    @GetMapping
+    public List<String> getSchools() {
+        return List.of("Greenwood High", "Sunrise Public", "Riverdale Academy");
+    }
+}
+
+
+Step 3: Student Service
+This service manages students and calls SchoolService to fetch school info.
+
+application.properties
+
+spring.application.name=student-service
+server.port=8082
+
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
+
+Main.class
+
+@SpringBootApplication
+@EnableEurekaClient
+public class StudentServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(StudentServiceApplication.class, args);
+    }
+}
+
+
+
+package com.studentservice;
+
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+
+@Configuration
+public class RestTemplateConfig {
+	   @Bean
+	    @LoadBalanced
+	    public RestTemplate restTemplate() {
+
+	        return new RestTemplate();
+	    }
+}
+
+
+controller
+
+package com.studentservice;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+@RestController
+@RequestMapping("/students")
+
+public class StudentController {
+	 private final RestTemplate restTemplate;
+
+	    public StudentController(RestTemplate restTemplate) {
+	        this.restTemplate = restTemplate;
+	    }
+
+	    @GetMapping
+	    public Map<String, Object> getStudents() {
+
+	        List<?> schools = restTemplate.getForObject(
+	            "http://schoolservice/schools",
+	            List.class
+	        );
+
+	        List<String> students =
+	            List.of("Alice", "Bob", "Charlie");
+
+	        return Map.of(
+	            "students", students,
+	            "schools", schools
+	        );
+	    }
+
+
+}
+
+
+Step 4: Run the Services
+Start Eureka Server (8761).
+
+Start School Service (8081).
+
+Start Student Service (8082).
+
+Visit http://localhost:8761 → Both services registered.
+
+Call http://localhost:8082/students → StudentService fetches school list from SchoolService.
